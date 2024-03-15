@@ -14,9 +14,11 @@ ENV SMTP_USE_TLS=
 RUN apk add --no-cache --repository http://dl-cdn.alpinelinux.org/alpine/v3.13/community/ gnu-libiconv==1.15-r3
 ENV LD_PRELOAD /usr/lib/preloadable_libiconv.so php
 
+
 # Add nfs-utils for longhorn.  nfs-common for ubuntu system
+RUN apk add nfs-utils
+
 RUN apk --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/ add \
-	nfs-utils \
         ca-certificates \
         gettext \
         gzip \
