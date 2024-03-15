@@ -1,0 +1,82 @@
+stages:
+  - unit_test
+  - build_tmp_image
+  - test
+  - build_image
+
+image: $CI_REGISTRY/iride-marketplace/marketplace/integration-level/registry-dev/ecommerce-magento-devenv:$DEV_ENV_VERSION
+
+variables:
+  IMAGE_VERSION: $CI_COMMIT_SHA
+  DEV_IMAGE_TAG: "dev"
+
+unit_test:
+  stage: unit_test
+  script:
+    - echo "always perform a unit test!"
+
+build_tmp_image:
+  stage: build_tmp_image
+  script:
+    - echo ${CI_COMMIT_BRANCH}
+    - echo ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t ecommerce-nginx:$IMAGE_VERSION -f Dockerfile .
+    - docker tag ecommerce-nginx:$IMAGE_VERSION $CI_REGISTRY_IMAGE/ecommerce-nginx:$IMAGE_VERSION
+    - docker push $CI_REGISTRY_IMAGE/ecommerce-nginx:$IMAGE_VERSION
+    - docker logout $CI_REGISTRY
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+include:
+  - template: Jobs/SAST.latest.gitlab-ci.yml
+  - template: Jobs/Container-Scanning.latest.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.latest.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.latest.gitlab-ci.yml
+  - template: Jobs/Code-Quality.gitlab-ci.yml
+
+sast:
+  stage: test
+
+code_quality:
+  services:
+  variables:
+    DOCKER_SOCKET_PATH: /run/user/998/docker.sock
+  tags:
+    - code_quality
+
+container_scanning:
+  variables:
+    GIT_STRATEGY: fetch
+    CS_DOCKERFILE_PATH: $CI_PROJECT_DIR/Dockerfile
+    CS_IMAGE: $CI_REGISTRY_IMAGE/ecommerce-nginx:$IMAGE_VERSION
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+gemnasium-dependency_scanning:
+  variables:
+    DS_MAX_DEPTH: 100
+
+gemnasium-maven-dependency_scanning:
+  variables:
+    DS_MAX_DEPTH: 100
+
+gemnasium-python-dependency_scanning:
+  variables:
+    DS_MAX_DEPTH: 100
+
+rebuild_and_push_image_to_dev:
+  stage: build_image
+  script:
+    - echo ${CI_COMMIT_BRANCH}
+    - echo ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}
+    - docker login -u ${registrydevusername} -p ${registrydevpassword} $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev
+    - docker build -t ecommerce-nginx:$IMAGE_VERSION -f Dockerfile .
+    - docker rmi $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev/ecommerce-nginx:$DEV_IMAGE_TAG || true
+    - docker tag ecommerce-nginx:$IMAGE_VERSION $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev/ecommerce-nginx:$IMAGE_VERSION
+    - docker tag ecommerce-nginx:$IMAGE_VERSION $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev/ecommerce-nginx:$DEV_IMAGE_TAG
+    - docker push $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev/ecommerce-nginx:$IMAGE_VERSION
+    - docker push $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev/ecommerce-nginx:$DEV_IMAGE_TAG
+    - docker logout $CI_SERVER_HOST:5050/$CI_PROJECT_ROOT_NAMESPACE/marketplace/integration-level/registry-dev
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
