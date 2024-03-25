@@ -16,7 +16,6 @@ ENV LD_PRELOAD /usr/lib/preloadable_libiconv.so php
 
 
 # Add nfs-utils for longhorn.  nfs-common for ubuntu system
-RUN apk add nfs-utils
 
 RUN apk --no-cache --repository=http://dl-cdn.alpinelinux.org/alpine/edge/testing/ add \
         ca-certificates \
